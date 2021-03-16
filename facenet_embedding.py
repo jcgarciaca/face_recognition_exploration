@@ -13,13 +13,13 @@ def load_image_into_numpy_array(path):
 
   Puts image into numpy array to feed into tensorflow graph.
   Note that by convention we put it into a numpy array with shape
-  (height, width, channels), where channels=3 for RGB.
+  (height, width, channels)
 
   Args:
     path: the file path to the image
 
   Returns:
-    uint8 numpy array with shape (img_height, img_width, 3)
+    uint8 numpy array with shape (img_height, img_width, channels)
   """
   image_np = np.array(Image.open(path))
   return image_np
@@ -37,19 +37,23 @@ def crop_images(image, rect, expand=0.4):
 
 
 def main():
+  chunk = 10000
   data_dict = dict()
-  expand_factor = 0.2
+  expand_factor = 0.6
   root_path = '/home/MIBS'
-  imgs_folder = os.path.join(root_path, 'images')
+  imgs_folder = os.path.join(root_path, 'test_images')
   model_path = os.path.join(root_path, 'facenet', 'models', 'facenet_keras.h5')
-  csv_path = os.path.join(root_path, 'facenet', 'embedding', 'database_embedding_{}.csv'.format(expand_factor))
-  error_path = os.path.join(root_path, 'facenet', 'embedding', 'error_log.csv')
+  csv_folder = os.path.join(root_path, 'facenet', 'embedding', str(expand_factor))
+  if not os.path.exists(csv_folder):
+    os.mkdir(csv_folder)
+  error_path = os.path.join(csv_folder, 'error_log.csv')
   model = load_model(model_path)
   model.summary()
 
   face_detector = dlib.get_frontal_face_detector()
   img_list = os.listdir(imgs_folder)
   error_imgs = []
+  chunk_cnt = 1
   for idx, img_name in enumerate(img_list):
     print('Running {}/{}'.format(idx + 1, len(img_list)))
     img_path = os.path.join(imgs_folder, img_name)
@@ -59,15 +63,18 @@ def main():
       crop_img = crop_images(img, rects[0], expand=expand_factor)
       result = model(crop_img)
       data_dict[img_name] = np.array(result[0])
+      if len(data_dict.keys()) % chunk == 0 or idx == len(img_list) - 1:
+        df = pd.DataFrame.from_dict(data_dict)
+        df.to_csv(os.path.join(csv_folder, 'database_embedding_{}.csv'.format(chunk_cnt)), index=False)
+        chunk_cnt += 1
+        data_dict = dict()
     except:
       print('Error with image' + img_name)
       error_imgs.append(img_name)
 
-  df = pd.DataFrame.from_dict(data_dict)
-  df.to_csv(csv_path, index=False)
-
-  df_e = pd.DataFrame(error_imgs, columns=['Name'])
-  df_e.to_csv(error_path, index=False)
+  if len(error_imgs) > 0:
+    df_e = pd.DataFrame(error_imgs, columns=['Name'])
+    df_e.to_csv(error_path, index=False)
 
 if __name__ == "__main__":
     main()
