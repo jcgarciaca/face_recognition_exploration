@@ -38,29 +38,36 @@ def crop_images(image, rect, expand=0.4):
 
 def main():
   data_dict = dict()
+  expand_factor = 0.2
   root_path = '/home/MIBS'
   imgs_folder = os.path.join(root_path, 'images')
   model_path = os.path.join(root_path, 'facenet', 'models', 'facenet_keras.h5')
-  csv_path = os.path.join(root_path, 'facenet', 'embedding', 'database_embedding.csv')
+  csv_path = os.path.join(root_path, 'facenet', 'embedding', 'database_embedding_{}.csv'.format(expand_factor))
+  error_path = os.path.join(root_path, 'facenet', 'embedding', 'error_log.csv')
   model = load_model(model_path)
   model.summary()
 
   face_detector = dlib.get_frontal_face_detector()
   img_list = os.listdir(imgs_folder)
+  error_imgs = []
   for idx, img_name in enumerate(img_list):
     print('Running {}/{}'.format(idx + 1, len(img_list)))
     img_path = os.path.join(imgs_folder, img_name)
     try:
       img = load_image_into_numpy_array(img_path)    
       rects = face_detector(img)
-      crop_img = crop_images(img, rects[0], expand=0.2)
+      crop_img = crop_images(img, rects[0], expand=expand_factor)
       result = model(crop_img)
       data_dict[img_name] = np.array(result[0])
     except:
       print('Error with image' + img_name)
+      error_imgs.append(img_name)
 
   df = pd.DataFrame.from_dict(data_dict)
   df.to_csv(csv_path, index=False)
+
+  df_e = pd.DataFrame(error_imgs, columns=['Name'])
+  df_e.to_csv(error_path, index=False)
 
 if __name__ == "__main__":
     main()
